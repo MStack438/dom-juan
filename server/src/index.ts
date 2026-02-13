@@ -18,6 +18,7 @@ import { initializeScheduler } from './services/scraper/scheduler.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+app.set('trust proxy', 1);
 const PORT = parseInt(process.env.PORT || '5000', 10);
 
 app.use(helmet({ contentSecurityPolicy: false }));
