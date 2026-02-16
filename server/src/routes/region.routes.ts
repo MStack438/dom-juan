@@ -2,14 +2,37 @@ import { Router, type Request, type Response } from 'express';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import { db } from '../db/index.js';
 import { region } from '../db/schema/region.js';
+import { eq, ilike, and } from 'drizzle-orm';
 
 const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
-    const regions = await db.select().from(region).orderBy(region.name);
+    const { level, search } = req.query;
+
+    let query = db.select().from(region);
+
+    // Filter conditions
+    const conditions = [];
+
+    if (level !== undefined) {
+      const levelNum = parseInt(level as string, 10);
+      if (!isNaN(levelNum)) {
+        conditions.push(eq(region.level, levelNum));
+      }
+    }
+
+    if (search && typeof search === 'string' && search.trim()) {
+      conditions.push(ilike(region.name, `%${search.trim()}%`));
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+
+    const regions = await query.orderBy(region.name);
     res.json(regions);
   } catch (err) {
     res.status(500).json({

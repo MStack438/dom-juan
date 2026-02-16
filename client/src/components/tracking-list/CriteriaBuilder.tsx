@@ -1,5 +1,5 @@
 import { Input } from '@/components/ui/input';
-import { RegionSelector } from './RegionSelector';
+import { MunicipalitySelector } from './MunicipalitySelector';
 import { cn } from '@/lib/utils';
 import type { TrackingCriteria, PropertyType } from '@/types';
 
@@ -38,10 +38,13 @@ export function CriteriaBuilder({ criteria, onChange }: CriteriaBuilderProps) {
 
   return (
     <div className="space-y-4">
-      <RegionSelector
-        value={criteria.regions ?? []}
-        onChange={(ids) => update({ regions: ids.length ? ids : undefined })}
-      />
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Municipalities</label>
+        <MunicipalitySelector
+          selectedIds={criteria.municipalities ?? []}
+          onChange={(ids) => update({ municipalities: ids.length ? ids : undefined })}
+        />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">

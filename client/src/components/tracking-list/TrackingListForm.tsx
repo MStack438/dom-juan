@@ -2,6 +2,12 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { ChevronDown } from 'lucide-react';
 import { CriteriaBuilder } from './CriteriaBuilder';
 import type { TrackingCriteria } from '@/types';
 import type { TrackingListWithStats } from '@/types';
@@ -86,19 +92,6 @@ export function TrackingListForm({
               placeholder="Short description"
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">
-              Custom Realtor.ca URL (optional)
-            </label>
-            <Input
-              value={customUrl}
-              onChange={(e) => setCustomUrl(e.target.value)}
-              placeholder="https://www.realtor.ca/..."
-            />
-            <p className="text-xs text-muted-foreground">
-              Leave empty to use criteria below. Must be a realtor.ca URL.
-            </p>
-          </div>
 
           {!customUrl && (
             <div className="space-y-2">
@@ -106,6 +99,29 @@ export function TrackingListForm({
               <CriteriaBuilder criteria={criteria} onChange={setCriteria} />
             </div>
           )}
+
+          <Collapsible>
+            <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium hover:underline">
+              Advanced options
+              <ChevronDown className="h-4 w-4" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2 space-y-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Custom Realtor.ca URL
+                </label>
+                <Input
+                  value={customUrl}
+                  onChange={(e) => setCustomUrl(e.target.value)}
+                  placeholder="https://www.realtor.ca/..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use a custom Realtor.ca search URL instead of criteria above. Useful for
+                  very specific searches that can't be expressed with the criteria builder.
+                </p>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           {error && (
             <p className="text-sm text-destructive">{error}</p>

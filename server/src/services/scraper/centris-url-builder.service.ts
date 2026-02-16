@@ -70,12 +70,12 @@ function mapRegionToSlug(municipality?: string): string {
 export function buildCentrisSearchUrl(criteria: TrackingCriteria): string {
   // Determine property category
   const category =
-    criteria.propertyType && criteria.propertyType.length > 0
-      ? mapPropertyTypeToCategory(criteria.propertyType[0])
+    criteria.propertyTypes && criteria.propertyTypes.length > 0
+      ? mapPropertyTypeToCategory(criteria.propertyTypes[0])
       : 'properties';
 
-  // Determine region
-  const region = mapRegionToSlug(criteria.municipality);
+  // Determine region (for now, just use a default - will be enhanced later)
+  const region = null; // TODO: Look up municipality names from database
 
   // Start with base path
   let url = `${BASE_URL}/${category}~for-sale`;
@@ -100,13 +100,13 @@ export function buildCentrisSearchUrl(criteria: TrackingCriteria): string {
   }
 
   // Bedrooms
-  if (criteria.bedsMin) {
-    params.set('rooms', `${criteria.bedsMin}+`);
+  if (criteria.bedroomsMin) {
+    params.set('rooms', `${criteria.bedroomsMin}+`);
   }
 
   // Bathrooms
-  if (criteria.bathsMin) {
-    params.set('bathrooms', `${criteria.bathsMin}+`);
+  if (criteria.bathroomsMin) {
+    params.set('bathrooms', `${criteria.bathroomsMin}+`);
   }
 
   // Year built
@@ -118,19 +118,13 @@ export function buildCentrisSearchUrl(criteria: TrackingCriteria): string {
   }
 
   // Lot size (Centris uses square feet)
-  if (criteria.lotSizeMin) {
-    params.set('lotSizeMin', criteria.lotSizeMin.toString());
-  }
-  if (criteria.lotSizeMax) {
-    params.set('lotSizeMax', criteria.lotSizeMax.toString());
+  if (criteria.lotSizeMinSqft) {
+    params.set('lotSizeMin', criteria.lotSizeMinSqft.toString());
   }
 
   // Living area
-  if (criteria.livingAreaMin) {
-    params.set('livingAreaMin', criteria.livingAreaMin.toString());
-  }
-  if (criteria.livingAreaMax) {
-    params.set('livingAreaMax', criteria.livingAreaMax.toString());
+  if (criteria.livingAreaMinSqft) {
+    params.set('livingAreaMin', criteria.livingAreaMinSqft.toString());
   }
 
   // Sorting (default to most recent)
@@ -178,14 +172,14 @@ export function parseCentrisUrl(url: string): Partial<TrackingCriteria> {
     const rooms = urlObj.searchParams.get('rooms');
     if (rooms) {
       const match = rooms.match(/^(\d+)/);
-      if (match) criteria.bedsMin = parseInt(match[1], 10);
+      if (match) criteria.bedroomsMin = parseInt(match[1], 10);
     }
 
     // Extract bathrooms
     const bathrooms = urlObj.searchParams.get('bathrooms');
     if (bathrooms) {
       const match = bathrooms.match(/^(\d+)/);
-      if (match) criteria.bathsMin = parseInt(match[1], 10);
+      if (match) criteria.bathroomsMin = parseInt(match[1], 10);
     }
 
     // Extract year built
@@ -196,15 +190,11 @@ export function parseCentrisUrl(url: string): Partial<TrackingCriteria> {
 
     // Extract lot size
     const lotSizeMin = urlObj.searchParams.get('lotSizeMin');
-    const lotSizeMax = urlObj.searchParams.get('lotSizeMax');
-    if (lotSizeMin) criteria.lotSizeMin = parseInt(lotSizeMin, 10);
-    if (lotSizeMax) criteria.lotSizeMax = parseInt(lotSizeMax, 10);
+    if (lotSizeMin) criteria.lotSizeMinSqft = parseInt(lotSizeMin, 10);
 
     // Extract living area
     const livingAreaMin = urlObj.searchParams.get('livingAreaMin');
-    const livingAreaMax = urlObj.searchParams.get('livingAreaMax');
-    if (livingAreaMin) criteria.livingAreaMin = parseInt(livingAreaMin, 10);
-    if (livingAreaMax) criteria.livingAreaMax = parseInt(livingAreaMax, 10);
+    if (livingAreaMin) criteria.livingAreaMinSqft = parseInt(livingAreaMin, 10);
   } catch (error) {
     console.error('Error parsing Centris URL:', error);
   }
