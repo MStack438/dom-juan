@@ -225,12 +225,14 @@ async function main() {
   console.log(`   Level 0 (Admin Regions): ${level0Count.length}`);
   console.log(`   Level 1 (MRCs): ${level1Count.length}`);
   console.log(`   Level 2 (Municipalities): ${level2Count.length}`);
-  console.log(`   Total: ${level0Count.length + level1Count.length + level2Count.length}`);
-
-  process.exit(0);
+  console.log(`   Total: ${level0Count.length + level1Count.length + level2Count.length}\n`);
 }
 
-main().catch((error) => {
-  console.error('❌ Error:', error);
-  process.exit(1);
-});
+// Only exit if running as a standalone script
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error('❌ Seed error:', error);
+    console.error('Stack:', error.stack);
+    process.exit(1);
+  });
+}

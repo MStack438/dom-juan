@@ -5,7 +5,7 @@ buildCommand = "npm run build"
 [deploy]
 startCommand = "npm run db:migrate && npm run db:seed-municipalities && npm run start"
 healthcheckPath = "/api/auth/status"
-healthcheckTimeout = 30
+healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
