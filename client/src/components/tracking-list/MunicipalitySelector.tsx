@@ -33,7 +33,7 @@ export function MunicipalitySelector({ selectedIds, onChange }: MunicipalitySele
     },
   });
 
-  const municipalities = municipalitiesData || [];
+  const municipalities = Array.isArray(municipalitiesData) ? municipalitiesData : [];
 
   // Fetch selected municipalities for display
   const { data: allRegionsData } = useQuery({
@@ -43,7 +43,7 @@ export function MunicipalitySelector({ selectedIds, onChange }: MunicipalitySele
     },
   });
 
-  const allRegions = allRegionsData || [];
+  const allRegions = Array.isArray(allRegionsData) ? allRegionsData : [];
 
   // Filter municipalities based on search
   const filteredMunicipalities = useMemo(() => {
