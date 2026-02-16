@@ -17,8 +17,12 @@ Personal real estate intelligence platform for tracking Quebec property listings
    ```
 
 2. **Environment**
-   - Copy `.env.example` to `.env`
-   - Set `DATABASE_URL` to your PostgreSQL connection string
+   - Copy `.env.example` to `.env` (and `server/.env` if you run scripts from the server workspace)
+   - Set `DATABASE_URL` to your PostgreSQL connection string. **Local development:** create a DB with `createdb domjuan`, then in both `.env` and `server/.env` use:
+     ```env
+     DATABASE_URL=postgresql://localhost:5432/domjuan
+     ```
+     (Use `postgresql://user:password@localhost:5432/domjuan` if your Postgres requires credentials.)
    - Set `APP_PASSWORD_HASH` (bcrypt hash of your app password):
      ```bash
      node -e "console.log(require('bcryptjs').hashSync('your-password', 10))"
