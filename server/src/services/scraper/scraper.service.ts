@@ -284,6 +284,8 @@ export async function executeScrapeRun(runId: string): Promise<void> {
                     photoCount: details.photoCount ?? 0,
                     brokerName: details.brokerName ?? null,
                     brokerAgency: details.brokerAgency ?? null,
+                    originalListDate: details.originalListDate ?? null,
+                    listedDaysWhenFound: details.daysOnMarket ?? null,
                     lastDetailScrapeAt: new Date(),
                   })
                   .returning();

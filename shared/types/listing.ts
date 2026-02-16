@@ -34,6 +34,8 @@ export interface Listing {
   lastSeenAt: string;
   lastDetailScrapeAt: string | null;
   delistedAt: string | null;
+  originalListDate: string | null;
+  listedDaysWhenFound: number | null;
   originalPrice: number;
   currentPrice: number;
   priceChangeCount: number;

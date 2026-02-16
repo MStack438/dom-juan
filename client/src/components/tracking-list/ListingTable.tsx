@@ -18,9 +18,13 @@ interface ListingTableProps {
 }
 
 function daysOnMarket(listing: Listing): number {
-  const first = new Date(listing.firstSeenAt).getTime();
-  const last = new Date(listing.lastSeenAt).getTime();
-  return Math.max(0, Math.floor((last - first) / (24 * 60 * 60 * 1000)));
+  // Use original list date if available, otherwise fall back to first seen
+  const listDate = listing.originalListDate
+    ? new Date(listing.originalListDate).getTime()
+    : new Date(listing.firstSeenAt).getTime();
+
+  const now = new Date().getTime();
+  return Math.max(0, Math.floor((now - listDate) / (24 * 60 * 60 * 1000)));
 }
 
 export function ListingTable({ listings, isLoading }: ListingTableProps) {

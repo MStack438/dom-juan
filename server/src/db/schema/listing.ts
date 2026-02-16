@@ -44,6 +44,8 @@ export const listing = pgTable(
       withTimezone: true,
     }),
     delistedAt: timestamp('delisted_at', { withTimezone: true }),
+    originalListDate: timestamp('original_list_date', { withTimezone: true }),
+    listedDaysWhenFound: integer('listed_days_when_found'),
     originalPrice: integer('original_price').notNull(),
     currentPrice: integer('current_price').notNull(),
     priceChangeCount: integer('price_change_count').notNull().default(0),

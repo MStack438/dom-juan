@@ -395,6 +395,8 @@ export interface ParsedDetail {
   photoCount?: number;
   brokerName?: string | null;
   brokerAgency?: string | null;
+  daysOnMarket?: number | null;
+  originalListDate?: Date | null;
 }
 
 function parseInteger(text: string): number | null {
@@ -495,6 +497,20 @@ export async function parseDetailPage(page: Page): Promise<ParsedDetail> {
       ? true
       : null;
   out.hasFireplace = bodyText?.toLowerCase().includes('fireplace') ?? null;
+
+  // Extract "X days on Realtor.ca" or similar patterns
+  const daysMatch = bodyText?.match(/(\d+)\s+days?\s+on\s+realtor/i);
+  if (daysMatch) {
+    const daysOnMarket = parseInt(daysMatch[1], 10);
+    if (!isNaN(daysOnMarket)) {
+      out.daysOnMarket = daysOnMarket;
+      // Calculate original list date by subtracting days from now
+      const now = new Date();
+      const originalDate = new Date(now);
+      originalDate.setDate(originalDate.getDate() - daysOnMarket);
+      out.originalListDate = originalDate;
+    }
+  }
 
   return out;
 }
