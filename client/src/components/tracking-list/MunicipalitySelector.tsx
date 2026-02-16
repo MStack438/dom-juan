@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Check, ChevronsUpDown, X } from 'lucide-react';
@@ -27,33 +26,35 @@ export function MunicipalitySelector({ selectedIds, onChange }: MunicipalitySele
   const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch all municipalities (level 2)
-  const { data: municipalities = [], isLoading } = useQuery({
+  const { data: municipalitiesData, isLoading } = useQuery({
     queryKey: ['regions', 'municipalities'],
     queryFn: async () => {
-      const response = await api.get<Region[]>('/api/regions?level=2');
-      return response.data;
+      return api.get<Region[]>('/api/regions?level=2');
     },
   });
 
+  const municipalities = municipalitiesData || [];
+
   // Fetch selected municipalities for display
-  const { data: allRegions = [] } = useQuery({
+  const { data: allRegionsData } = useQuery({
     queryKey: ['regions', 'all'],
     queryFn: async () => {
-      const response = await api.get<Region[]>('/api/regions');
-      return response.data;
+      return api.get<Region[]>('/api/regions');
     },
   });
+
+  const allRegions = allRegionsData || [];
 
   // Filter municipalities based on search
   const filteredMunicipalities = useMemo(() => {
     if (!searchQuery.trim()) return municipalities;
     const query = searchQuery.toLowerCase();
-    return municipalities.filter((m) => m.name.toLowerCase().includes(query));
+    return municipalities.filter((m: Region) => m.name.toLowerCase().includes(query));
   }, [municipalities, searchQuery]);
 
   // Get selected municipality names
   const selectedMunicipalities = useMemo(() => {
-    return allRegions.filter((r) => selectedIds.includes(r.id));
+    return allRegions.filter((r: Region) => selectedIds.includes(r.id));
   }, [allRegions, selectedIds]);
 
   const handleSelect = (municipalityId: string) => {
@@ -100,7 +101,7 @@ export function MunicipalitySelector({ selectedIds, onChange }: MunicipalitySele
                 {isLoading ? 'Loading...' : 'No municipalities found.'}
               </CommandEmpty>
               <CommandGroup>
-                {filteredMunicipalities.slice(0, 100).map((municipality) => (
+                {filteredMunicipalities.slice(0, 100).map((municipality: Region) => (
                   <CommandItem
                     key={municipality.id}
                     value={municipality.id}
@@ -139,7 +140,7 @@ export function MunicipalitySelector({ selectedIds, onChange }: MunicipalitySele
             </Button>
           </div>
           <div className="flex flex-wrap gap-1">
-            {selectedMunicipalities.map((municipality) => (
+            {selectedMunicipalities.map((municipality: Region) => (
               <Badge key={municipality.id} variant="secondary" className="gap-1">
                 {municipality.name}
                 <button
