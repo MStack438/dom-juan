@@ -12,6 +12,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx scripts/seed.ts",
+    "db:seed-municipalities": "tsx scripts/seed-municipalities.ts",
     "scrape": "tsx scripts/manual-scrape.ts",
     "capture-html": "tsx scripts/capture-realtor-html.ts",
     "test-selectors": "tsx scripts/test-selectors.ts",
@@ -22,6 +23,7 @@
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
+    "csv-parse": "^6.1.0",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.45.1",
     "express": "^4.21.1",
