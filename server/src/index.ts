@@ -21,6 +21,7 @@ import dashboardRoutes from './routes/dashboard.routes.js';
 import regionRoutes from './routes/region.routes.js';
 import scraperRoutes from './routes/scraper.routes.js';
 import exportRoutes from './routes/export.routes.js';
+import debugRoutes from './routes/debug.routes.js';
 import { initializeScheduler } from './services/scraper/scheduler.service.js';
 
 const app = express();
@@ -65,6 +66,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/regions', regionRoutes);
 app.use('/api/scraper', scraperRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/debug', debugRoutes);
 
 if (process.env.NODE_ENV === 'production') {
   const clientDist = path.join(__dirname, '../../client/dist');
