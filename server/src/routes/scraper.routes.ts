@@ -2,12 +2,17 @@ import { Router, type Request, type Response } from 'express';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import { db } from '../db/index.js';
 import { scrapeRun } from '../db/schema/scrape-run.js';
+import { region } from '../db/schema/region.js';
 import { eq, desc } from 'drizzle-orm';
 import {
   startScrapeRun,
   executeScrapeRun,
   isScrapeRunning,
 } from '../services/scraper/scraper.service.js';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 const router = Router();
 
@@ -110,6 +115,70 @@ router.get('/status', async (_req: Request, res: Response) => {
         code: 'INTERNAL_ERROR',
         message:
           err instanceof Error ? err.message : 'Failed to fetch scraper status',
+      },
+    });
+  }
+});
+
+router.post('/seed-municipalities', async (_req: Request, res: Response) => {
+  try {
+    // Check if already seeded (has level 2 regions)
+    const existing = await db
+      .select()
+      .from(region)
+      .where(eq(region.level, 2))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Already seeded, return success
+      const counts = await Promise.all([
+        db.select().from(region).where(eq(region.level, 0)),
+        db.select().from(region).where(eq(region.level, 1)),
+        db.select().from(region).where(eq(region.level, 2)),
+      ]);
+
+      res.json({
+        message: 'Municipalities already seeded',
+        counts: {
+          adminRegions: counts[0].length,
+          mrcs: counts[1].length,
+          municipalities: counts[2].length,
+        },
+      });
+      return;
+    }
+
+    // Run the seed script
+    const { stdout, stderr } = await execAsync('npm run db:seed-municipalities');
+
+    if (stderr && !stderr.includes('npm warn')) {
+      console.error('[Seed] stderr:', stderr);
+    }
+
+    console.log('[Seed] stdout:', stdout);
+
+    // Get final counts
+    const counts = await Promise.all([
+      db.select().from(region).where(eq(region.level, 0)),
+      db.select().from(region).where(eq(region.level, 1)),
+      db.select().from(region).where(eq(region.level, 2)),
+    ]);
+
+    res.json({
+      message: 'Municipalities seeded successfully',
+      counts: {
+        adminRegions: counts[0].length,
+        mrcs: counts[1].length,
+        municipalities: counts[2].length,
+      },
+    });
+  } catch (err) {
+    console.error('[Seed] Error:', err);
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message:
+          err instanceof Error ? err.message : 'Failed to seed municipalities',
       },
     });
   }
