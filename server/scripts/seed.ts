@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './load-env.js';
 import { db } from '../src/db/index.js';
 import { region } from '../src/db/schema/region.js';
 

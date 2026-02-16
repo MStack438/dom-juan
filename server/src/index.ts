@@ -1,12 +1,19 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Always load server/.env so the server uses the same env regardless of cwd (e.g. npm run from root vs server)
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import session from 'express-session';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { sql } from 'drizzle-orm';
 import { sessionConfig } from './middleware/auth.middleware.js';
 import { errorHandler } from './middleware/error.middleware.js';
+import { db } from './db/index.js';
 import authRoutes from './routes/auth.routes.js';
 import trackingListRoutes from './routes/tracking-list.routes.js';
 import listingRoutes from './routes/listing.routes.js';
@@ -16,13 +23,38 @@ import scraperRoutes from './routes/scraper.routes.js';
 import exportRoutes from './routes/export.routes.js';
 import { initializeScheduler } from './services/scraper/scheduler.service.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.set('trust proxy', 1);
 const PORT = parseInt(process.env.PORT || '5000', 10);
 
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: true, credentials: true }));
+// Log every request and response status (so we can see if 403 is from our server or the proxy)
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    console.log(`${req.method} ${req.url} → ${res.statusCode}`);
+  });
+  next();
+});
+
+// Helmet disabled in development to avoid 403 Forbidden on /api/* (strict cross-origin headers
+// can block proxied requests from Vite). Use full Helmet in production.
+if (process.env.NODE_ENV === 'production') {
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+  );
+}
+// In dev, allow the Vite dev server origin so direct API calls work; with proxy we're same-origin.
+const corsOptions = {
+  credentials: true,
+  optionsSuccessStatus: 204,
+  ...(process.env.NODE_ENV === 'development'
+    ? { origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] }
+    : { origin: true }),
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(session(sessionConfig));
 
@@ -45,6 +77,11 @@ if (process.env.NODE_ENV === 'production') {
 app.use(errorHandler);
 
 initializeScheduler();
+
+// Verify database connection on startup (log only; do not block)
+db.execute(sql`SELECT 1`)
+  .then(() => console.log('[DB] Connected'))
+  .catch((err) => console.error('[DB] Connection failed:', err.message));
 
 app.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}`);

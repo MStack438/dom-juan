@@ -46,7 +46,13 @@ Personal real estate intelligence platform for tracking Quebec property listings
    npm run dev
    ```
    - App: http://localhost:5173
-   - API: http://localhost:5000
+   - API: http://localhost:5000 (Vite proxies `/api` to the server)
+
+**Local dev troubleshooting**
+
+- The server **always loads `server/.env`** (not the repo root `.env`). Put `DATABASE_URL` and other vars in `server/.env` so the app and scripts (migrate, seed, scrape) use the same config.
+- On startup you should see `[DB] Connected` in the server log. If you see `[DB] Connection failed: ...`, fix `DATABASE_URL` in `server/.env` (e.g. use `postgresql://localhost:5432/domjuan` for a local DB).
+- If API calls return 500, check the server terminal for `[Server Error]` or `[Dashboard summary]` / `[Dashboard activity]` — the message shows the real error (e.g. connection refused, database missing).
 
 ## Scripts
 

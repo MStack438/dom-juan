@@ -7,6 +7,14 @@ import { listingTrackingList } from '../../db/schema/listing-tracking-list.js';
 import { scrapeRun } from '../../db/schema/scrape-run.js';
 import { buildSearchUrl, buildFromCustomUrl } from './url-builder.service.js';
 import { parseSearchResults, parseDetailPage } from './parser.service.js';
+import {
+  buildCentrisSearchUrl,
+  buildFromCentrisCustomUrl,
+} from './centris-url-builder.service.js';
+import {
+  parseCentrisSearchResults,
+  type CentrisSearchResult,
+} from './centris-parser.service.js';
 import { pingHealthcheck } from '../notification/healthcheck.service.js';
 import { eq, and } from 'drizzle-orm';
 import type { TrackingCriteria } from '../../types/criteria.js';
@@ -82,11 +90,24 @@ export async function executeScrapeRun(runId: string): Promise<void> {
       if (totalRequests >= MAX_REQUESTS_PER_RUN) break;
 
       try {
-        const searchUrl = list.customUrl
-          ? buildFromCustomUrl(list.customUrl)
-          : buildSearchUrl((list.criteria ?? {}) as TrackingCriteria);
+        // Determine source (realtor or centris)
+        const source = list.source || 'realtor';
+        console.log(`[Scraper] Processing list: ${list.name} (source: ${source})`);
+
+        // Build appropriate search URL based on source
+        let searchUrl: string;
+        if (source === 'centris') {
+          searchUrl = list.customUrl
+            ? buildFromCentrisCustomUrl(list.customUrl)
+            : buildCentrisSearchUrl((list.criteria ?? {}) as TrackingCriteria);
+        } else {
+          searchUrl = list.customUrl
+            ? buildFromCustomUrl(list.customUrl)
+            : buildSearchUrl((list.criteria ?? {}) as TrackingCriteria);
+        }
 
         const seenMlsNumbers = new Set<string>();
+        const seenCentrisNumbers = new Set<string>();
         const page = await context.newPage();
         let currentPage = 1;
         let hasMorePages = true;
@@ -94,22 +115,120 @@ export async function executeScrapeRun(runId: string): Promise<void> {
         while (hasMorePages && totalRequests < MAX_REQUESTS_PER_RUN) {
           const pageUrl = `${searchUrl}${searchUrl.includes('?') ? '&' : '?'}CurrentPage=${currentPage}`;
 
-          await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          await page.goto(pageUrl, { waitUntil: 'networkidle', timeout: 60000 });
           await randomDelay();
+          // Extra wait for React app to hydrate and render listings
+          await delay(5000);
           totalRequests++;
 
-          const results = await parseSearchResults(page);
+          // Parse results based on source
+          if (source === 'centris') {
+            const centrisResults = await parseCentrisSearchResults(page);
 
-          if (results.length === 0) {
-            hasMorePages = false;
-            break;
-          }
+            if (centrisResults.length === 0) {
+              hasMorePages = false;
+              break;
+            }
 
-          for (const result of results) {
-            seenMlsNumbers.add(result.mlsNumber);
-            stats.listingsFound++;
+            for (const result of centrisResults) {
+              seenCentrisNumbers.add(result.centrisNumber);
+              stats.listingsFound++;
 
-            const existing = await db
+              const existing = await db
+                .select()
+                .from(listing)
+                .where(eq(listing.centrisNumber, result.centrisNumber))
+                .limit(1);
+
+              if (existing.length === 0) {
+                // New Centris listing - for now, save without detail scrape
+                const [newListing] = await db
+                  .insert(listing)
+                  .values({
+                    source: 'centris',
+                    mlsNumber: result.centrisNumber, // Use Centris number as MLS for uniqueness
+                    centrisNumber: result.centrisNumber,
+                    sourceUrl: result.detailUrl,
+                    address: result.address,
+                    municipality: null, // TODO: Parse from address
+                    postalCode: null,
+                    originalPrice: result.price,
+                    currentPrice: result.price,
+                    status: 'active',
+                    bedrooms: result.bedrooms ?? null,
+                    bathrooms: result.bathrooms ?? null,
+                    photoCount: result.photoCount ?? 0,
+                  })
+                  .returning();
+
+                await db.insert(listingTrackingList).values({
+                  listingId: newListing!.id,
+                  trackingListId: list.id,
+                });
+
+                await db.insert(snapshot).values({
+                  listingId: newListing!.id,
+                  price: result.price,
+                  status: 'active',
+                });
+
+                stats.listingsNew++;
+              } else {
+                const existingListing = existing[0]!;
+                const priceChanged =
+                  existingListing.currentPrice !== result.price;
+
+                await db
+                  .update(listing)
+                  .set({
+                    lastSeenAt: new Date(),
+                    currentPrice: result.price,
+                    priceChangeCount: priceChanged
+                      ? existingListing.priceChangeCount + 1
+                      : existingListing.priceChangeCount,
+                    status: 'active',
+                    delistedAt: null,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(listing.id, existingListing.id));
+
+                await db
+                  .insert(listingTrackingList)
+                  .values({
+                    listingId: existingListing.id,
+                    trackingListId: list.id,
+                  })
+                  .onConflictDoNothing({
+                    target: [
+                      listingTrackingList.listingId,
+                      listingTrackingList.trackingListId,
+                    ],
+                  });
+
+                await db.insert(snapshot).values({
+                  listingId: existingListing.id,
+                  price: result.price,
+                  status: 'active',
+                });
+
+                if (priceChanged) stats.listingsUpdated++;
+              }
+
+              consecutiveFailures = 0;
+            }
+          } else {
+            const results = await parseSearchResults(page);
+
+            if (results.length === 0) {
+              hasMorePages = false;
+              break;
+            }
+
+            for (const result of results) {
+              seenMlsNumbers.add(result.mlsNumber);
+              stats.listingsFound++;
+
+              const existing = await db
               .select()
               .from(listing)
               .where(eq(listing.mlsNumber, result.mlsNumber))
@@ -120,7 +239,7 @@ export async function executeScrapeRun(runId: string): Promise<void> {
               const detailPage = await context.newPage();
               try {
                 await detailPage.goto(result.detailUrl, {
-                  waitUntil: 'domcontentloaded',
+                  waitUntil: 'networkidle',
                   timeout: 30000,
                 });
                 totalRequests++;
@@ -227,15 +346,21 @@ export async function executeScrapeRun(runId: string): Promise<void> {
 
             consecutiveFailures = 0;
           }
-
-          currentPage++;
-          if (currentPage > 20) hasMorePages = false;
         }
+
+        currentPage++;
+        if (currentPage > 20) hasMorePages = false;
+      }
 
         await page.close();
 
         const linkedListings = await db
-          .select({ mlsNumber: listing.mlsNumber, id: listing.id })
+          .select({
+            mlsNumber: listing.mlsNumber,
+            centrisNumber: listing.centrisNumber,
+            id: listing.id,
+            source: listing.source,
+          })
           .from(listing)
           .innerJoin(
             listingTrackingList,
@@ -249,7 +374,13 @@ export async function executeScrapeRun(runId: string): Promise<void> {
           );
 
         for (const linked of linkedListings) {
-          if (!seenMlsNumbers.has(linked.mlsNumber)) {
+          // Check appropriate ID set based on source
+          const shouldDelist =
+            linked.source === 'centris'
+              ? linked.centrisNumber && !seenCentrisNumbers.has(linked.centrisNumber)
+              : !seenMlsNumbers.has(linked.mlsNumber);
+
+          if (shouldDelist) {
             await db
               .update(listing)
               .set({

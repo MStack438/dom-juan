@@ -1,10 +1,12 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import postgres from 'postgres';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error('DATABASE_URL is required');

@@ -2,7 +2,7 @@
  * Run a full scrape from the CLI (no auth). Use for testing or cron outside the app.
  * Usage: npm run scrape   (from repo root) or tsx scripts/manual-scrape.ts (from server)
  */
-import 'dotenv/config';
+import './load-env.js';
 import { runScrape } from '../src/services/scraper/scraper.service.js';
 
 runScrape('manual')

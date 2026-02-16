@@ -14,8 +14,14 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5100',
         changeOrigin: true,
+        secure: false,
+        configure: (proxy) => {
+          proxy.on('error', (err, _req, res) => {
+            console.warn('[Vite proxy]', err.message);
+          });
+        },
       },
     },
   },

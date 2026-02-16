@@ -2,34 +2,225 @@ import type { Page } from 'playwright';
 
 /**
  * Selectors for Realtor.ca. Update when the site changes.
+ *
+ * ⚠️ IMPORTANT: These are PLACEHOLDER selectors that need to be updated!
+ *
+ * To fix:
+ * 1. Run: npm run capture-html (captures actual Realtor.ca HTML)
+ * 2. Inspect fixtures/realtor-search-*.html in DevTools
+ * 3. Update selectors below with actual data-* attributes and classes
+ * 4. See SELECTOR-GUIDE.md for detailed instructions
+ *
+ * Each selector string can contain multiple fallbacks separated by commas.
+ * The parser will try each selector in order until one matches.
  */
 export const SELECTORS = {
   searchResults: {
-    listingCard: '[class*="listingCard"], [data-testid*="listing"], article',
-    price: '[class*="price"]',
-    address: '[class*="address"]',
-    beds: '[class*="beds"], [class*="bedroom"]',
-    baths: '[class*="baths"], [class*="bathroom"]',
-    sqft: '[class*="sqft"], [class*="area"]',
-    detailLink: 'a[href*="/real-estate/"]',
-    mlsNumber: '[class*="mls"], [class*="MLS"]',
-    photo: 'img[class*="photo"], img[class*="image"]',
+    // Container for each listing card (one per property)
+    listingCard: [
+      '[data-testid*="listing-card"]',
+      '[data-testid*="listing"]',
+      '[data-listing-id]',
+      'article[class*="listing"]',
+      'article[class*="card"]',
+      '[class*="ListingCard"]',
+      '[class*="PropertyCard"]',
+      'article',
+      '[role="article"]',
+    ].join(', '),
+
+    // Price within the card
+    price: [
+      '[data-testid*="price"]',
+      '[data-price]',
+      '[class*="Price"]',
+      '[class*="price"]',
+      '[itemprop="price"]',
+    ].join(', '),
+
+    // Address/location within the card
+    address: [
+      '[data-testid*="address"]',
+      '[data-testid*="location"]',
+      '[itemprop="address"]',
+      '[class*="Address"]',
+      '[class*="address"]',
+      '[class*="Location"]',
+      '[class*="location"]',
+    ].join(', '),
+
+    // Property specifications
+    beds: [
+      '[data-testid*="bed"]',
+      '[class*="Bed"]',
+      '[class*="bed"]',
+      '[class*="bedroom"]',
+    ].join(', '),
+
+    baths: [
+      '[data-testid*="bath"]',
+      '[class*="Bath"]',
+      '[class*="bath"]',
+      '[class*="bathroom"]',
+    ].join(', '),
+
+    sqft: [
+      '[data-testid*="sqft"]',
+      '[data-testid*="area"]',
+      '[class*="Sqft"]',
+      '[class*="Area"]',
+      '[class*="sqft"]',
+      '[class*="area"]',
+    ].join(', '),
+
+    // Link to detail page
+    detailLink: [
+      'a[href*="/real-estate/"]',
+      'a[href*="/property/"]',
+      'a[href*="/listing/"]',
+      'a[data-testid*="listing-link"]',
+      'a[class*="listing"]',
+    ].join(', '),
+
+    // MLS number (unique identifier)
+    mlsNumber: [
+      '[data-mls-number]',
+      '[data-listing-id]',
+      '[data-testid*="mls"]',
+      '[class*="MLS"]',
+      '[class*="mls"]',
+    ].join(', '),
+
+    // Property photo
+    photo: [
+      'img[data-testid*="photo"]',
+      'img[data-testid*="image"]',
+      'img[class*="Photo"]',
+      'img[class*="Image"]',
+      'img[class*="photo"]',
+      'img[class*="image"]',
+    ].join(', '),
   },
+
   detailPage: {
-    price: '[class*="price-amount"], [data-testid="price"]',
-    address: '[class*="property-address"], [data-testid="address"]',
-    mlsNumber: '[class*="mls-number"], [data-testid="mls"]',
-    yearBuilt: '[class*="year-built"]',
-    lotSize: '[class*="lot-size"]',
-    livingArea: '[class*="living-area"]',
-    bedrooms: '[class*="bedrooms"]',
-    bathrooms: '[class*="bathrooms"]',
-    stories: '[class*="stories"]',
-    propertyType: '[class*="property-type"]',
-    description: '[class*="description"], [data-testid="description"]',
-    photos: '[class*="photo-gallery"] img, [class*="carousel"] img',
-    brokerName: '[class*="agent-name"], [class*="realtor-name"]',
-    brokerAgency: '[class*="agency-name"], [class*="brokerage"]',
+    // Price on detail page
+    price: [
+      '[data-testid="price"]',
+      '[data-testid*="price"]',
+      '[itemprop="price"]',
+      '[class*="Price"]',
+      '[class*="price-amount"]',
+      '[class*="price"]',
+    ].join(', '),
+
+    // Full address
+    address: [
+      '[data-testid="address"]',
+      '[data-testid*="address"]',
+      '[itemprop="address"]',
+      'address',
+      '[class*="Address"]',
+      '[class*="property-address"]',
+      '[class*="address"]',
+    ].join(', '),
+
+    // MLS number on detail page
+    mlsNumber: [
+      '[data-mls-number]',
+      '[data-testid*="mls"]',
+      '[class*="MLS"]',
+      '[class*="mls-number"]',
+      '[class*="mls"]',
+    ].join(', '),
+
+    // Property specifications
+    yearBuilt: [
+      '[data-testid*="year"]',
+      '[class*="YearBuilt"]',
+      '[class*="year-built"]',
+      '[class*="year"]',
+    ].join(', '),
+
+    lotSize: [
+      '[data-testid*="lot"]',
+      '[class*="LotSize"]',
+      '[class*="lot-size"]',
+      '[class*="lot"]',
+    ].join(', '),
+
+    livingArea: [
+      '[data-testid*="living"]',
+      '[data-testid*="sqft"]',
+      '[class*="LivingArea"]',
+      '[class*="living-area"]',
+      '[class*="square-feet"]',
+    ].join(', '),
+
+    bedrooms: [
+      '[data-testid*="bed"]',
+      '[class*="Bedroom"]',
+      '[class*="bedroom"]',
+      '[class*="bed"]',
+    ].join(', '),
+
+    bathrooms: [
+      '[data-testid*="bath"]',
+      '[class*="Bathroom"]',
+      '[class*="bathroom"]',
+      '[class*="bath"]',
+    ].join(', '),
+
+    stories: [
+      '[data-testid*="stor"]',
+      '[class*="Stories"]',
+      '[class*="stories"]',
+      '[class*="storey"]',
+    ].join(', '),
+
+    propertyType: [
+      '[data-testid*="type"]',
+      '[class*="PropertyType"]',
+      '[class*="property-type"]',
+      '[class*="type"]',
+    ].join(', '),
+
+    // Rich content
+    description: [
+      '[data-testid="description"]',
+      '[data-testid*="description"]',
+      '[itemprop="description"]',
+      '[class*="Description"]',
+      '[class*="description"]',
+      '.description',
+    ].join(', '),
+
+    photos: [
+      '[data-testid*="gallery"] img',
+      '[data-testid*="photo"] img',
+      '[class*="Gallery"] img',
+      '[class*="Carousel"] img',
+      '[class*="photo-gallery"] img',
+      '[class*="carousel"] img',
+      'img[src*="photo"]',
+      'img[src*="image"]',
+    ].join(', '),
+
+    // Agent/broker information
+    brokerName: [
+      '[data-testid*="agent"]',
+      '[data-testid*="broker"]',
+      '[class*="AgentName"]',
+      '[class*="agent-name"]',
+      '[class*="realtor-name"]',
+    ].join(', '),
+
+    brokerAgency: [
+      '[data-testid*="agency"]',
+      '[data-testid*="brokerage"]',
+      '[class*="Agency"]',
+      '[class*="agency-name"]',
+      '[class*="brokerage"]',
+    ].join(', '),
   },
 } as const;
 
@@ -49,18 +240,57 @@ export async function parseSearchResults(
   page: Page
 ): Promise<SearchResult[]> {
   const results: SearchResult[] = [];
+
+  // Try to find listing cards using the selector
   const cards = await page.locator(SELECTORS.searchResults.listingCard).all();
 
-  for (const card of cards) {
+  // Diagnostic logging
+  console.log(`[Parser] Found ${cards.length} listing cards using selector:`);
+  console.log(`[Parser] ${SELECTORS.searchResults.listingCard.substring(0, 100)}...`);
+
+  // If no cards found, log diagnostics
+  if (cards.length === 0) {
+    console.warn('[Parser] ⚠️  No listing cards found!');
+    console.warn('[Parser] Possible reasons:');
+    console.warn('[Parser]   1. Selectors are incorrect (most likely)');
+    console.warn('[Parser]   2. Page not fully loaded');
+    console.warn('[Parser]   3. Bot protection blocking content');
+
+    // Try to detect what's on the page
+    const bodyText = await page.locator('body').textContent();
+    if (bodyText?.includes('Incapsula') || bodyText?.includes('Access Denied')) {
+      console.error('[Parser] ❌ Bot protection detected on page');
+    } else if (bodyText && bodyText.length < 1000) {
+      console.warn('[Parser] ⚠️  Page content is suspiciously short');
+    } else {
+      console.warn('[Parser] ℹ️  Page has content, but selectors don\'t match');
+      console.warn('[Parser] ℹ️  Run: npm run capture-html to debug');
+    }
+
+    return results;
+  }
+
+  // Parse each card
+  let successCount = 0;
+  let failureCount = 0;
+
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
     try {
+      // Extract detail page link
       const link = card.locator(SELECTORS.searchResults.detailLink).first();
       const href = await link.getAttribute('href').catch(() => null);
-      if (!href) continue;
+      if (!href) {
+        console.warn(`[Parser] Card ${i + 1}: No detail link found`);
+        failureCount++;
+        continue;
+      }
 
       const detailUrl = href.startsWith('http')
         ? href
         : `https://www.realtor.ca${href}`;
 
+      // Extract price
       const priceText =
         (await card
           .locator(SELECTORS.searchResults.price)
@@ -68,8 +298,13 @@ export async function parseSearchResults(
           .textContent()
           .catch(() => null)) ?? '';
       const price = parsePrice(priceText);
-      if (!price) continue;
+      if (!price) {
+        console.warn(`[Parser] Card ${i + 1}: No price found (text: "${priceText}")`);
+        failureCount++;
+        continue;
+      }
 
+      // Extract address
       const address =
         (await card
           .locator(SELECTORS.searchResults.address)
@@ -77,6 +312,7 @@ export async function parseSearchResults(
           .textContent()
           .catch(() => null)) ?? '';
 
+      // Extract MLS number
       const mlsText =
         (await card
           .locator(SELECTORS.searchResults.mlsNumber)
@@ -86,7 +322,11 @@ export async function parseSearchResults(
       const mlsMatch = mlsText.match(/\d{6,}/);
       const mlsNumber = mlsMatch ? mlsMatch[0] : detailUrl.split('/').pop() ?? '';
 
-      if (!mlsNumber) continue;
+      if (!mlsNumber) {
+        console.warn(`[Parser] Card ${i + 1}: No MLS number found`);
+        failureCount++;
+        continue;
+      }
 
       results.push({
         mlsNumber: mlsNumber.trim().slice(0, 50),
@@ -94,10 +334,23 @@ export async function parseSearchResults(
         address: (address || 'Unknown').trim().slice(0, 500),
         price,
       });
-    } catch {
-      // Skip malformed cards
+
+      successCount++;
+
+      // Log first successful parse for verification
+      if (successCount === 1) {
+        console.log('[Parser] ✓ First listing parsed successfully:');
+        console.log(`[Parser]   MLS: ${mlsNumber}`);
+        console.log(`[Parser]   Price: $${price.toLocaleString()}`);
+        console.log(`[Parser]   Address: ${address || 'Unknown'}`);
+      }
+    } catch (error) {
+      console.warn(`[Parser] Card ${i + 1}: Parse error:`, error);
+      failureCount++;
     }
   }
+
+  console.log(`[Parser] Parse complete: ${successCount} success, ${failureCount} failed`);
 
   return results;
 }

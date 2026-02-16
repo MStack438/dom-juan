@@ -22,7 +22,9 @@ export const listing = pgTable(
   'listing',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    source: varchar('source', { length: 20 }).notNull().default('realtor'), // 'realtor' or 'centris'
     mlsNumber: varchar('mls_number', { length: 50 }).unique().notNull(),
+    centrisNumber: varchar('centris_number', { length: 50 }).unique(), // For Centris listings
     sourceUrl: text('source_url').notNull(),
     regionId: uuid('region_id').references(() => region.id, {
       onDelete: 'set null',

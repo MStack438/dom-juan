@@ -16,6 +16,7 @@ export const trackingList = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     name: varchar('name', { length: 255 }).notNull(),
     description: text('description'),
+    source: varchar('source', { length: 20 }).notNull().default('realtor'), // 'realtor' or 'centris'
     criteria: jsonb('criteria').$type<TrackingCriteria>().notNull().default({}),
     customUrl: text('custom_url'),
     isActive: boolean('is_active').notNull().default(true),

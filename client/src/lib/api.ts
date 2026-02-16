@@ -1,3 +1,4 @@
+// Use relative /api so Vite proxy forwards to the backend (same-origin in dev, no CORS issues).
 const API_BASE = '/api';
 
 async function handleResponse<T>(res: Response): Promise<T> {
