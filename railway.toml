@@ -3,9 +3,9 @@ builder = "nixpacks"
 buildCommand = "npm run build"
 
 [deploy]
-startCommand = "npm run db:migrate && npm run db:seed-municipalities && npm run start"
-healthcheckPath = "/api/auth/status"
-healthcheckTimeout = 300
+startCommand = "npm run db:migrate && (npm run db:seed-municipalities || echo 'Seed failed or already complete') && npm run start"
+healthcheckPath = "/api/debug/db-status"
+healthcheckTimeout = 120
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
