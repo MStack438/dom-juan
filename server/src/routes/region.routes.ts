@@ -1,12 +1,11 @@
 import { Router, type Request, type Response } from 'express';
-import { requireAuth } from '../middleware/auth.middleware.js';
 import { db } from '../db/index.js';
 import { region } from '../db/schema/region.js';
 import { eq, ilike, and } from 'drizzle-orm';
 
 const router = Router();
 
-router.use(requireAuth);
+// Regions are public reference data - no authentication required
 
 router.get('/', async (req: Request, res: Response) => {
   try {
