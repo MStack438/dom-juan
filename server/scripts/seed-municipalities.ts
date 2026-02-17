@@ -247,9 +247,11 @@ async function main() {
 
 // Only exit if running as a standalone script
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
-    console.error('❌ Seed error:', error);
-    console.error('Stack:', error.stack);
-    process.exit(1);
-  });
+main()
+      .then(() => process.exit(0))
+      .catch((error) => {
+              console.error('❌ Seed error:', error);
+              console.error('Stack:', error.stack);
+              process.exit(1);
+      });
 }
