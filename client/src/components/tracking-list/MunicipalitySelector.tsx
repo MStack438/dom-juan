@@ -29,7 +29,7 @@ export function MunicipalitySelector({ selectedIds, onChange }: MunicipalitySele
   const { data: municipalitiesData, isLoading } = useQuery({
     queryKey: ['regions', 'municipalities'],
     queryFn: async () => {
-      return api.get<Region[]>('/api/regions?level=2');
+      return api.get<Region[]>('/regions?level=2');
     },
   });
 
@@ -39,7 +39,7 @@ export function MunicipalitySelector({ selectedIds, onChange }: MunicipalitySele
   const { data: allRegionsData } = useQuery({
     queryKey: ['regions', 'all'],
     queryFn: async () => {
-      return api.get<Region[]>('/api/regions');
+      return api.get<Region[]>('/regions');
     },
   });
 

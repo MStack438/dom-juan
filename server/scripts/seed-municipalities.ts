@@ -39,9 +39,26 @@ function generateUrlFragment(name: string): string {
 }
 
 async function main() {
+  // Quick-check: if municipalities already exist, skip the entire fetch+seed
+  const existingMunicipalities = await db
+    .select()
+    .from(region)
+    .where(eq(region.level, 2))
+    .limit(1);
+
+  if (existingMunicipalities.length > 0) {
+    console.log('✅ Municipalities already seeded — skipping fetch.\n');
+    return;
+  }
+
   console.log('📥 Fetching Quebec municipalities data...\n');
 
-  const response = await fetch('https://donneesouvertes.affmunqc.net/repertoire/MUN.csv');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000); // 30s timeout
+
+  const response = await fetch('https://donneesouvertes.affmunqc.net/repertoire/MUN.csv', {
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timeout));
   if (!response.ok) {
     throw new Error(`Failed to fetch CSV: ${response.status} ${response.statusText}`);
   }
