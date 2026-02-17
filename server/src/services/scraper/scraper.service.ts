@@ -1,4 +1,3 @@
-import { chromium, type Browser } from 'playwright';
 import { db } from '../../db/index.js';
 import { listing } from '../../db/schema/listing.js';
 import { snapshot } from '../../db/schema/snapshot.js';
@@ -63,7 +62,11 @@ export async function startScrapeRun(
  * Runs the scrape logic for an existing run record. Updates the record on completion.
  */
 export async function executeScrapeRun(runId: string): Promise<void> {
-  let browser: Browser | null = null;
+  // Lazy-import Playwright so the server can start even when browser binaries
+  // are missing (e.g. Railway). Playwright is only needed when a scrape runs.
+  const { chromium } = await import('playwright');
+
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
   let consecutiveFailures = 0;
   const errors: ScrapeError[] = [];
   let stats = {
