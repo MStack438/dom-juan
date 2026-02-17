@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { Session, SessionOptions } from 'express-session';
-import connectPgSimple from 'connect-pg-simple';
 import session from 'express-session';
+import { createRequire } from 'module';
 
 declare module 'express-session' {
   interface SessionData {
@@ -24,14 +24,21 @@ function buildSessionConfig(): SessionOptions {
 
   // Use PostgreSQL session store in production (survives container restarts)
   if (process.env.DATABASE_URL) {
-    const PgStore = connectPgSimple(session);
-    baseConfig.store = new PgStore({
-      conString: process.env.DATABASE_URL,
-      tableName: 'user_sessions',
-      createTableIfMissing: true, // Auto-creates the session table
-      pruneSessionInterval: 60 * 15, // Clean expired sessions every 15 min
-    });
-    console.log('[Session] Using PostgreSQL session store');
+    try {
+      // connect-pg-simple is CJS — use createRequire for ESM compatibility
+      const require = createRequire(import.meta.url);
+      const connectPgSimple = require('connect-pg-simple');
+      const PgStore = connectPgSimple(session);
+      baseConfig.store = new PgStore({
+        conString: process.env.DATABASE_URL,
+        tableName: 'user_sessions',
+        createTableIfMissing: true,
+        pruneSessionInterval: 60 * 15, // Clean expired sessions every 15 min
+      });
+      console.log('[Session] Using PostgreSQL session store');
+    } catch (err) {
+      console.warn('[Session] Failed to load connect-pg-simple, falling back to memory store:', err);
+    }
   } else {
     console.log('[Session] Using in-memory session store (no DATABASE_URL)');
   }
