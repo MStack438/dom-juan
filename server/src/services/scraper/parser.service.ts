@@ -17,7 +17,10 @@ import type { Page } from 'playwright';
 export const SELECTORS = {
   searchResults: {
     // Container for each listing card (one per property)
+    // Updated for Realtor.ca list view (div.listingCard works perfectly)
     listingCard: [
+      'div.listingCard',
+      'li.cardCon',
       '[data-testid*="listing-card"]',
       '[data-testid*="listing"]',
       '[data-listing-id]',
@@ -555,10 +558,29 @@ export async function parseDetailPage(page: Page): Promise<ParsedDetail> {
       : null;
   out.hasFireplace = bodyText?.toLowerCase().includes('fireplace') ?? null;
 
-  // Extract "X days on Realtor.ca" or similar patterns
-  const daysMatch = bodyText?.match(/(\d+)\s+days?\s+on\s+realtor/i);
-  if (daysMatch) {
-    const daysOnMarket = parseInt(daysMatch[1], 10);
+  // Extract "Time on REALTOR.ca" field
+  // Format: "Time on REALTOR.ca: 1 hour" or "5 days" or "2 weeks" or "1 month"
+  const timeOnRealtorMatch = bodyText?.match(/Time on REALTOR\.ca[:\s]+(\d+)\s+(hour|day|week|month)s?/i);
+  if (timeOnRealtorMatch) {
+    const value = parseInt(timeOnRealtorMatch[1], 10);
+    const unit = timeOnRealtorMatch[2].toLowerCase();
+
+    let daysOnMarket = 0;
+    switch (unit) {
+      case 'hour':
+        daysOnMarket = Math.max(0, Math.floor(value / 24)); // Convert hours to days
+        break;
+      case 'day':
+        daysOnMarket = value;
+        break;
+      case 'week':
+        daysOnMarket = value * 7;
+        break;
+      case 'month':
+        daysOnMarket = value * 30; // Approximate
+        break;
+    }
+
     if (!isNaN(daysOnMarket)) {
       out.daysOnMarket = daysOnMarket;
       // Calculate original list date by subtracting days from now

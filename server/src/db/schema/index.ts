@@ -5,3 +5,6 @@ export * from './listing.js';
 export * from './listing-tracking-list.js';
 export * from './snapshot.js';
 export * from './scrape-run.js';
+export * from './circuit-breaker.js';
+export * from './fingerprint-usage.js';
+export * from './proxy-usage.js';

@@ -1,6 +1,7 @@
 import type { TrackingCriteria } from '../../types/criteria.js';
 
-const REALTOR_BASE = 'https://www.realtor.ca/map';
+// Use list view instead of map view for better DOM scraping
+const REALTOR_BASE = 'https://www.realtor.ca/qc/greater-montreal/real-estate';
 
 const PROPERTY_TYPE_MAP: Record<string, string> = {
   detached: '1',
@@ -19,7 +20,6 @@ export function buildSearchUrl(criteria: TrackingCriteria): string {
   const params = new URLSearchParams();
 
   params.set('TransactionTypeId', '2');
-  params.set('ProvinceId', '7');
 
   if (criteria.priceMin)
     params.set('PriceMin', criteria.priceMin.toString());

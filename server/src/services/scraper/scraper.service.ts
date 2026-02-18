@@ -18,6 +18,45 @@ import { pingHealthcheck } from '../notification/healthcheck.service.js';
 import { eq, and } from 'drizzle-orm';
 import type { TrackingCriteria } from '../../types/criteria.js';
 import type { ScrapeError } from '../../types/api.js';
+import { SCRAPER_CONFIG } from '../../config/scraper.config.js';
+import {
+  injectStealthScripts,
+  getStealthHeaders,
+  getRealisticUserAgent,
+  simulateHumanBehavior,
+} from './stealth/stealth-injection.service.js';
+import {
+  getProxyConfiguration,
+  trackBandwidthUsage,
+  isOverBudget,
+  BANDWIDTH_ESTIMATES,
+} from './stealth/proxy.service.js';
+import { withRetry, retryPageNavigation } from './stealth/retry.service.js';
+import {
+  getFingerprint,
+  markFingerprintUsed,
+  applyFingerprintToContext,
+  getFingerprintedStealthScript,
+} from './stealth/fingerprint.service.js';
+import {
+  canExecute as circuitBreakerCanExecute,
+  recordSuccess as circuitBreakerSuccess,
+  recordFailure as circuitBreakerFailure,
+} from './stealth/circuit-breaker.service.js';
+import {
+  simulateHumanPageInteraction,
+  scrollLikeHuman,
+  simulateReadingTime,
+} from './stealth/human-behavior.service.js';
+import {
+  waitWithIntelligentDelay,
+  getDetailPageDelay,
+  getSearchPageDelay,
+} from './stealth/timing.service.js';
+import {
+  loadSession,
+  saveSession,
+} from './stealth/session.service.js';
 
 const DELAY_MIN_MS = 2000;
 const DELAY_MAX_MS = 4000;
@@ -64,9 +103,19 @@ export async function startScrapeRun(
 export async function executeScrapeRun(runId: string): Promise<void> {
   // Lazy-import Playwright so the server can start even when browser binaries
   // are missing (e.g. Railway). Playwright is only needed when a scrape runs.
-  const { chromium } = await import('playwright');
+  let chromium: any;
+  try {
+    const pw = await import('playwright');
+    chromium = pw.chromium;
+  } catch (error) {
+    const errorMsg = 'Playwright not installed. Run: npx playwright install chromium';
+    console.error(`[Scraper] ${errorMsg}`, error);
+    throw new Error(errorMsg);
+  }
 
-  let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
+  let browser: any = null;
+  let realtorContext: any = null;
+  let centrisContext: any = null;
   let consecutiveFailures = 0;
   const errors: ScrapeError[] = [];
   let stats = {
@@ -77,12 +126,66 @@ export async function executeScrapeRun(runId: string): Promise<void> {
     listingsDelisted: 0,
   };
   let totalRequests = 0;
+  let currentFingerprint = await getFingerprint(); // Initialize fingerprint for Realtor context
 
   try {
-    browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({
-      userAgent: getRandomUserAgent(),
+    // Launch browser with stealth args
+    try {
+      browser = await chromium.launch({
+        headless: true,
+        args: [
+          '--disable-blink-features=AutomationControlled',
+          '--disable-dev-shm-usage',
+          '--no-sandbox',
+        ],
+      });
+    } catch (launchError) {
+      const errorMsg =
+        'Failed to launch browser. Playwright binaries may not be installed. ' +
+        'Run: npx playwright install chromium --with-deps';
+      console.error(`[Scraper] ${errorMsg}`, launchError);
+      throw new Error(errorMsg);
+    }
+
+    // Create separate contexts for Centris and Realtor
+    // Centris: Basic context (no proxy, minimal stealth)
+    centrisContext = await browser.newContext({
+      userAgent: getRealisticUserAgent(),
+      viewport: { width: 1920, height: 1080 },
+      locale: 'en-CA',
+      timezoneId: 'America/Montreal',
     });
+
+    // Realtor: Enhanced stealth context with proxy and fingerprint rotation (if enabled)
+    const proxyConfig = await getProxyConfiguration(SCRAPER_CONFIG.realtor.proxy);
+
+    console.log(`[Scraper] Using fingerprint: ${currentFingerprint.id} (${currentFingerprint.platform})`);
+
+    realtorContext = await browser.newContext({
+      ...applyFingerprintToContext(currentFingerprint),
+      locale: 'en-CA',
+      timezoneId: 'America/Montreal',
+      extraHTTPHeaders: getStealthHeaders('CA'),
+      ...(proxyConfig && { proxy: proxyConfig }),
+    });
+
+    // Inject fingerprinted stealth scripts into Realtor context
+    if (SCRAPER_CONFIG.realtor.stealth.enabled) {
+      await realtorContext.addInitScript(getFingerprintedStealthScript(currentFingerprint));
+      console.log('[Scraper] Realtor.ca stealth enabled with fingerprint rotation');
+    }
+
+    if (proxyConfig) {
+      console.log(`[Scraper] Realtor.ca proxy enabled: ${SCRAPER_CONFIG.realtor.proxy.service}`);
+    } else if (SCRAPER_CONFIG.realtor.proxy.enabled) {
+      console.warn('[Scraper] Proxy configured but disabled (budget exceeded or unavailable)');
+    }
+
+    // Load session cookies (Tier 3)
+    if (SCRAPER_CONFIG.realtor.stealth.sessionPersistence) {
+      await loadSession(realtorContext, 'realtor');
+      await loadSession(centrisContext, 'centris');
+    }
 
     const activeLists = await db
       .select()
@@ -96,6 +199,22 @@ export async function executeScrapeRun(runId: string): Promise<void> {
         // Determine source (realtor or centris)
         const source = list.source || 'realtor';
         console.log(`[Scraper] Processing list: ${list.name} (source: ${source})`);
+
+        // Check circuit breaker for Realtor source
+        if (source === 'realtor') {
+          const circuitCheck = await circuitBreakerCanExecute('realtor');
+          if (!circuitCheck.allowed) {
+            console.warn(`[Scraper] ${circuitCheck.reason} - skipping list`);
+            errors.push({
+              timestamp: new Date().toISOString(),
+              severity: 'warning',
+              category: 'rate_limit',
+              message: circuitCheck.reason || 'Circuit breaker open',
+              context: { trackingListId: list.id },
+            });
+            continue; // Skip this list
+          }
+        }
 
         // Build appropriate search URL based on source
         let searchUrl: string;
@@ -111,19 +230,67 @@ export async function executeScrapeRun(runId: string): Promise<void> {
 
         const seenMlsNumbers = new Set<string>();
         const seenCentrisNumbers = new Set<string>();
-        const page = await context.newPage();
+
+        // Use appropriate context based on source
+        const contextToUse = source === 'centris' ? centrisContext : realtorContext;
+        const page = await contextToUse.newPage();
         let currentPage = 1;
         let hasMorePages = true;
 
         while (hasMorePages && totalRequests < MAX_REQUESTS_PER_RUN) {
           const pageUrl = `${searchUrl}${searchUrl.includes('?') ? '&' : '?'}CurrentPage=${currentPage}`;
 
-          // Use 'domcontentloaded' instead of 'networkidle' because real estate sites
-          // have continuous analytics/tracking requests that prevent networkidle
-          await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-          await randomDelay();
+          // Use retry logic for navigation (especially for Realtor with Incapsula)
+          const retryConfig = source === 'realtor' ? SCRAPER_CONFIG.realtor.retry : {
+            maxAttempts: 2,
+            baseDelayMs: 1000,
+            maxDelayMs: 5000,
+            backoffMultiplier: 2,
+            enableJitter: false,
+          };
+
+          await retryPageNavigation(
+            async () => {
+              await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            },
+            retryConfig,
+            pageUrl
+          );
+
+          // Track bandwidth usage for Realtor (proxy traffic)
+          if (source === 'realtor' && SCRAPER_CONFIG.realtor.proxy.enabled) {
+            await trackBandwidthUsage(BANDWIDTH_ESTIMATES.searchPage);
+          }
+
+          // Intelligent delay with time-awareness (Tier 3)
+          if (source === 'realtor' && SCRAPER_CONFIG.realtor.stealth.intelligentTiming) {
+            await waitWithIntelligentDelay({
+              minDelayMs: getSearchPageDelay(),
+              maxDelayMs: getSearchPageDelay() + 2000,
+              burstProtection: true,
+              timeOfDayAware: true,
+            });
+          } else {
+            await randomDelay();
+          }
+
           // Extra wait for React/SPA to hydrate and render listings
-          await delay(8000); // Increased from 5s to ensure listings are rendered
+          await delay(8000);
+
+          // Advanced human behavior simulation (Tier 3)
+          if (source === 'realtor' && SCRAPER_CONFIG.realtor.stealth.enabled) {
+            if (SCRAPER_CONFIG.realtor.stealth.advancedHumanBehavior) {
+              await simulateHumanPageInteraction(page, {
+                scroll: true,
+                mouseMovement: true,
+                readingTime: true,
+              });
+            } else {
+              // Fallback to basic simulation
+              await simulateHumanBehavior(page);
+            }
+          }
+
           totalRequests++;
 
           // Parse results based on source
@@ -240,8 +407,24 @@ export async function executeScrapeRun(runId: string): Promise<void> {
               .limit(1);
 
             if (existing.length === 0) {
-              await randomDelay();
-              const detailPage = await context.newPage();
+              // Intelligent delay before detail page (Tier 3)
+              if (source === 'realtor' && SCRAPER_CONFIG.realtor.stealth.intelligentTiming) {
+                await waitWithIntelligentDelay({
+                  minDelayMs: getDetailPageDelay(),
+                  maxDelayMs: getDetailPageDelay() + 2000,
+                  burstProtection: true,
+                  timeOfDayAware: true,
+                });
+              } else {
+                await randomDelay();
+              }
+
+              const detailPage = await contextToUse.newPage();
+
+              // Track bandwidth for detail page (Realtor only)
+              if (source === 'realtor' && SCRAPER_CONFIG.realtor.proxy.enabled) {
+                await trackBandwidthUsage(BANDWIDTH_ESTIMATES.detailPage);
+              }
               try {
                 await detailPage.goto(result.detailUrl, {
                   waitUntil: 'networkidle',
@@ -361,6 +544,12 @@ export async function executeScrapeRun(runId: string): Promise<void> {
 
         await page.close();
 
+        // Record success to circuit breaker and fingerprint for Realtor
+        if (source === 'realtor') {
+          await circuitBreakerSuccess('realtor');
+          await markFingerprintUsed(currentFingerprint.id, true);
+        }
+
         const linkedListings = await db
           .select({
             mlsNumber: listing.mlsNumber,
@@ -416,14 +605,25 @@ export async function executeScrapeRun(runId: string): Promise<void> {
         stats.trackingListsProcessed++;
       } catch (error) {
         consecutiveFailures++;
+
+        // Determine source for circuit breaker (default to realtor if not set yet)
+        const source = list.source || 'realtor';
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
         errors.push({
           timestamp: new Date().toISOString(),
           severity: 'error',
           category: 'unknown',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          message: errorMessage,
           context: { trackingListId: list.id },
           stack: error instanceof Error ? error.stack : undefined,
         });
+
+        // Record failure to circuit breaker and fingerprint for Realtor
+        if (source === 'realtor') {
+          await circuitBreakerFailure('realtor', errorMessage);
+          await markFingerprintUsed(currentFingerprint.id, false);
+        }
 
         if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
           errors.push({
@@ -482,6 +682,16 @@ export async function executeScrapeRun(runId: string): Promise<void> {
 
     await pingHealthcheck('fail');
   } finally {
+    // Save sessions before closing (Tier 3)
+    if (SCRAPER_CONFIG.realtor.stealth.sessionPersistence) {
+      if (realtorContext) {
+        await saveSession(realtorContext, 'realtor');
+      }
+      if (centrisContext) {
+        await saveSession(centrisContext, 'centris');
+      }
+    }
+
     if (browser) await browser.close();
   }
 }
