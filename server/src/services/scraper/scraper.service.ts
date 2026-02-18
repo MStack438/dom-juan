@@ -118,10 +118,12 @@ export async function executeScrapeRun(runId: string): Promise<void> {
         while (hasMorePages && totalRequests < MAX_REQUESTS_PER_RUN) {
           const pageUrl = `${searchUrl}${searchUrl.includes('?') ? '&' : '?'}CurrentPage=${currentPage}`;
 
-          await page.goto(pageUrl, { waitUntil: 'networkidle', timeout: 60000 });
+          // Use 'domcontentloaded' instead of 'networkidle' because real estate sites
+          // have continuous analytics/tracking requests that prevent networkidle
+          await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
           await randomDelay();
-          // Extra wait for React app to hydrate and render listings
-          await delay(5000);
+          // Extra wait for React/SPA to hydrate and render listings
+          await delay(8000); // Increased from 5s to ensure listings are rendered
           totalRequests++;
 
           // Parse results based on source
