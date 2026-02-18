@@ -277,11 +277,40 @@ export async function parseSearchResults(
   for (let i = 0; i < cards.length; i++) {
     const card = cards[i];
     try {
-      // Extract detail page link
-      const link = card.locator(SELECTORS.searchResults.detailLink).first();
-      const href = await link.getAttribute('href').catch(() => null);
+      // Extract detail page link - try multiple strategies
+      let href: string | null = null;
+
+      // Strategy 1: Try specific selectors
+      const specificLink = card.locator(SELECTORS.searchResults.detailLink).first();
+      href = await specificLink.getAttribute('href').catch(() => null);
+
+      // Strategy 2: If no specific link, try ANY link in the card
       if (!href) {
-        console.warn(`[Parser] Card ${i + 1}: No detail link found`);
+        const anyLinks = await card.locator('a[href]').all();
+        for (const link of anyLinks) {
+          const linkHref = await link.getAttribute('href').catch(() => null);
+          // Accept any link that looks like a property detail page
+          if (linkHref && (
+            linkHref.includes('/real-estate/') ||
+            linkHref.includes('/property') ||
+            linkHref.includes('/listing') ||
+            linkHref.includes('MLS') ||
+            linkHref.includes('/map#') ||
+            /\d{6,}/.test(linkHref) // Contains 6+ digit MLS-like number
+          )) {
+            href = linkHref;
+            break;
+          }
+        }
+      }
+
+      // Strategy 3: Try getting link from the card itself if it's clickable
+      if (!href) {
+        href = await card.getAttribute('href').catch(() => null);
+      }
+
+      if (!href) {
+        console.warn(`[Parser] Card ${i + 1}: No detail link found after trying all strategies`);
         failureCount++;
         continue;
       }
@@ -312,7 +341,10 @@ export async function parseSearchResults(
           .textContent()
           .catch(() => null)) ?? '';
 
-      // Extract MLS number
+      // Extract MLS number - try multiple strategies
+      let mlsNumber = '';
+
+      // Strategy 1: Try specific MLS selector
       const mlsText =
         (await card
           .locator(SELECTORS.searchResults.mlsNumber)
@@ -320,12 +352,37 @@ export async function parseSearchResults(
           .textContent()
           .catch(() => null)) ?? '';
       const mlsMatch = mlsText.match(/\d{6,}/);
-      const mlsNumber = mlsMatch ? mlsMatch[0] : detailUrl.split('/').pop() ?? '';
+      if (mlsMatch) {
+        mlsNumber = mlsMatch[0];
+      }
 
+      // Strategy 2: Extract from URL (last path segment or query param)
+      if (!mlsNumber && href) {
+        const urlMatch = href.match(/\d{6,}/);
+        if (urlMatch) mlsNumber = urlMatch[0];
+      }
+
+      // Strategy 3: Search entire card text for MLS pattern
       if (!mlsNumber) {
-        console.warn(`[Parser] Card ${i + 1}: No MLS number found`);
-        failureCount++;
-        continue;
+        const cardText = await card.textContent().catch(() => '');
+        const cardMatch = cardText?.match(/MLS[#\s:]*(\d{6,})/i);
+        if (cardMatch) {
+          mlsNumber = cardMatch[1];
+        } else {
+          // Just find any 6+ digit number as last resort
+          const anyNumberMatch = cardText?.match(/\b(\d{6,})\b/);
+          if (anyNumberMatch) mlsNumber = anyNumberMatch[1];
+        }
+      }
+
+      // Strategy 4: Generate from URL if still no MLS
+      if (!mlsNumber) {
+        mlsNumber = detailUrl.split('/').pop()?.replace(/[^0-9]/g, '') ?? '';
+      }
+
+      // Strategy 5: Use a hash of the URL as absolute fallback
+      if (!mlsNumber || mlsNumber.length < 6) {
+        mlsNumber = `URL${Math.abs(detailUrl.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0))}`;
       }
 
       results.push({
