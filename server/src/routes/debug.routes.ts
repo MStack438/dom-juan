@@ -51,47 +51,134 @@ router.get('/db-status', async (_req: Request, res: Response) => {
   }
 });
 
-// Debug endpoint to check Playwright installation
-router.get('/playwright-status', async (_req: Request, res: Response) => {
+// Debug endpoint to check Playwright installation and run full test
+router.get('/playwright-test', async (_req: Request, res: Response) => {
+  const results: any = {
+    timestamp: new Date().toISOString(),
+    tests: [],
+    summary: {
+      passed: 0,
+      failed: 0,
+      total: 4,
+    },
+  };
+
+  // Test 1: Module import
+  results.tests.push({ name: 'Module Import', status: 'running' });
   try {
-    // Try to import Playwright
     const pw = await import('playwright');
-    const chromium = pw.chromium;
-
-    // Try to get executable path
-    let executablePath = 'unknown';
-    let launchable = false;
-    let error: string | null = null;
-
-    try {
-      executablePath = chromium.executablePath();
-
-      // Try to launch browser
-      const browser = await chromium.launch({ headless: true });
-      await browser.close();
-      launchable = true;
-    } catch (launchError) {
-      error = launchError instanceof Error ? launchError.message : 'Unknown launch error';
-    }
-
-    res.json({
-      status: 'ok',
-      playwright: {
-        installed: true,
-        executablePath,
-        launchable,
-        error,
-      },
-    });
-  } catch (err) {
-    res.status(500).json({
-      status: 'error',
-      playwright: {
-        installed: false,
-        error: err instanceof Error ? err.message : 'Playwright not available',
-      },
-    });
+    results.tests[0] = {
+      name: 'Module Import',
+      status: 'passed',
+      details: `Version: ${pw.chromium.name()}`,
+    };
+    results.summary.passed++;
+  } catch (error) {
+    results.tests[0] = {
+      name: 'Module Import',
+      status: 'failed',
+      error: error instanceof Error ? error.message : String(error),
+    };
+    results.summary.failed++;
+    return res.json(results);
   }
+
+  // Test 2: Chromium import
+  results.tests.push({ name: 'Chromium Import', status: 'running' });
+  let chromium: any;
+  try {
+    const pw = await import('playwright');
+    chromium = pw.chromium;
+    results.tests[1] = {
+      name: 'Chromium Import',
+      status: 'passed',
+    };
+    results.summary.passed++;
+  } catch (error) {
+    results.tests[1] = {
+      name: 'Chromium Import',
+      status: 'failed',
+      error: error instanceof Error ? error.message : String(error),
+    };
+    results.summary.failed++;
+    return res.json(results);
+  }
+
+  // Test 3: Executable path
+  results.tests.push({ name: 'Executable Path', status: 'running' });
+  let executablePath = '';
+  try {
+    executablePath = chromium.executablePath();
+    const fs = await import('fs');
+    const exists = fs.existsSync(executablePath);
+
+    results.tests[2] = {
+      name: 'Executable Path',
+      status: exists ? 'passed' : 'failed',
+      details: {
+        path: executablePath,
+        exists,
+      },
+    };
+    if (exists) {
+      results.summary.passed++;
+    } else {
+      results.summary.failed++;
+      return res.json(results);
+    }
+  } catch (error) {
+    results.tests[2] = {
+      name: 'Executable Path',
+      status: 'failed',
+      error: error instanceof Error ? error.message : String(error),
+    };
+    results.summary.failed++;
+    return res.json(results);
+  }
+
+  // Test 4: Browser launch
+  results.tests.push({ name: 'Browser Launch', status: 'running' });
+  let browser: any = null;
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        '--disable-dev-shm-usage',
+        '--no-sandbox',
+      ],
+    });
+
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.goto('data:text/html,<h1>Test</h1>');
+    await browser.close();
+
+    results.tests[3] = {
+      name: 'Browser Launch',
+      status: 'passed',
+      details: 'Browser launched, navigated, and closed successfully',
+    };
+    results.summary.passed++;
+  } catch (error) {
+    results.tests[3] = {
+      name: 'Browser Launch',
+      status: 'failed',
+      error: error instanceof Error ? error.message : String(error),
+    };
+    results.summary.failed++;
+    if (browser) {
+      try { await browser.close(); } catch {}
+    }
+  }
+
+  // Overall status
+  results.status = results.summary.failed === 0 ? 'success' : 'failure';
+  results.message = results.summary.failed === 0
+    ? '✅ Playwright is fully functional!'
+    : `❌ ${results.summary.failed}/${results.summary.total} tests failed`;
+
+  res.json(results);
 });
 
 export default router;
