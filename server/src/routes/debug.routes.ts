@@ -51,4 +51,47 @@ router.get('/db-status', async (_req: Request, res: Response) => {
   }
 });
 
+// Debug endpoint to check Playwright installation
+router.get('/playwright-status', async (_req: Request, res: Response) => {
+  try {
+    // Try to import Playwright
+    const pw = await import('playwright');
+    const chromium = pw.chromium;
+
+    // Try to get executable path
+    let executablePath = 'unknown';
+    let launchable = false;
+    let error: string | null = null;
+
+    try {
+      executablePath = chromium.executablePath();
+
+      // Try to launch browser
+      const browser = await chromium.launch({ headless: true });
+      await browser.close();
+      launchable = true;
+    } catch (launchError) {
+      error = launchError instanceof Error ? launchError.message : 'Unknown launch error';
+    }
+
+    res.json({
+      status: 'ok',
+      playwright: {
+        installed: true,
+        executablePath,
+        launchable,
+        error,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      playwright: {
+        installed: false,
+        error: err instanceof Error ? err.message : 'Playwright not available',
+      },
+    });
+  }
+});
+
 export default router;
