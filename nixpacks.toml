@@ -1,0 +1,11 @@
+# Nixpacks configuration for Railway deployment
+# Ensures Playwright browser dependencies are available
+
+[phases.setup]
+nixPkgs = ['nodejs', 'chromium']
+
+[phases.install]
+cmds = ['npm install']
+
+[phases.build]
+cmds = ['npm run build', 'npx playwright install chromium']
