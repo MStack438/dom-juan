@@ -3,13 +3,15 @@ import type { Page } from 'playwright';
 /**
  * Selectors for Realtor.ca. Update when the site changes.
  *
- * ⚠️ IMPORTANT: These are PLACEHOLDER selectors that need to be updated!
+ * ⚠️ IMPORTANT URL REQUIREMENT:
+ * - Use LIST VIEW URLs: /qc/greater-montreal/real-estate?...
+ * - Do NOT use MAP VIEW URLs: /map#...
+ * - Map view doesn't render listing cards in HTML (only map markers)
  *
- * To fix:
- * 1. Run: npm run capture-html (captures actual Realtor.ca HTML)
- * 2. Inspect fixtures/realtor-search-*.html in DevTools
- * 3. Update selectors below with actual data-* attributes and classes
- * 4. See SELECTOR-GUIDE.md for detailed instructions
+ * 🔍 Debugging selector issues:
+ * 1. Run: npx tsx server/scripts/test-selector-matching.ts
+ * 2. Inspect the output to see which selectors match
+ * 3. Update selectors below based on findings
  *
  * Each selector string can contain multiple fallbacks separated by commas.
  * The parser will try each selector in order until one matches.
@@ -76,13 +78,12 @@ export const SELECTORS = {
       '[class*="area"]',
     ].join(', '),
 
-    // Link to detail page
+    // Link to detail page - use specific href-based selectors only
     detailLink: [
       'a[href*="/real-estate/"]',
       'a[href*="/property/"]',
       'a[href*="/listing/"]',
       'a[data-testid*="listing-link"]',
-      'a[class*="listing"]',
     ].join(', '),
 
     // MLS number (unique identifier)
@@ -285,7 +286,11 @@ export async function parseSearchResults(
 
       // Strategy 1: Try specific selectors
       const specificLink = card.locator(SELECTORS.searchResults.detailLink).first();
-      href = await specificLink.getAttribute('href').catch(() => null);
+      const rawHref = await specificLink.getAttribute('href').catch(() => null);
+      // Validate href is not just a fragment or empty
+      if (rawHref && rawHref !== '#' && !rawHref.startsWith('#')) {
+        href = rawHref;
+      }
 
       // Strategy 2: If no specific link, try ANY link in the card
       if (!href) {

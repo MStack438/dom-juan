@@ -9,7 +9,7 @@ async function createTestList() {
     .values({
       name: 'Test Montreal Houses',
       isActive: true,
-      customUrl: 'https://www.realtor.ca/map#ZoomLevel=10&Center=45.508888%2C-73.561668&Sort=6-D&TransactionTypeId=2&PropertyTypeGroupID=1&PriceMax=300000&Currency=CAD',
+      customUrl: 'https://www.realtor.ca/qc/greater-montreal/real-estate?TransactionTypeId=2&PropertyTypeGroupID=1&PriceMax=300000&Currency=CAD',
       criteria: {
         province: 'QC',
         priceMax: 300000,

@@ -6,6 +6,11 @@ dist/
 .DS_Store
 playwright-report/
 test-results/
-drizzle/
 *.timestamp-*
 .sessions/
+server/fixtures/
+
+# Drizzle - ignore generated files but keep migrations
+drizzle/*.js
+drizzle/meta/
+!drizzle/*.sql
